@@ -1,0 +1,119 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Build version (leave blank for dev-YYYY-MM-DD-sha default)"
+        required: false
+        type: string
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: 4.6.3-stable
+  ITCH_PROJECT: luckyhitgames/slow-rails
+  CHANNEL: html
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve build version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="dev-$(date -u +%Y-%m-%d)-${GITHUB_SHA::7}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Build version: $VERSION"
+
+      - name: Cache Godot binary + export templates
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/bin/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-linux-x86_64
+
+      - name: Install Godot
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$HOME/bin"
+          cd /tmp
+          curl -L -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}_linux.x86_64" "$HOME/bin/godot"
+          chmod +x "$HOME/bin/godot"
+
+      - name: Install export templates
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          cd /tmp
+          curl -L -o templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          mkdir -p "$HOME/.local/share/godot/export_templates"
+          unzip -q templates.tpz
+          mv templates "$HOME/.local/share/godot/export_templates/${GODOT_VERSION//-/.}"
+
+      - name: Add Godot to PATH
+        run: echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Godot
+        run: godot --version
+
+      - name: Headless web export
+        run: |
+          mkdir -p export/web
+          godot --headless --export-release "Web" export/web/index.html
+
+      - name: Verify build artifacts
+        run: |
+          for f in index.html index.js index.wasm index.pck; do
+            if [[ ! -f "export/web/$f" ]]; then
+              echo "::error::Missing artifact: export/web/$f"
+              exit 1
+            fi
+          done
+          echo "Build artifacts:"
+          ls -lh export/web/
+
+      - name: Install butler
+        run: |
+          cd /tmp
+          curl -L -o butler.zip "https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default"
+          unzip -q butler.zip
+          chmod +x butler
+          mv butler "$HOME/bin/butler"
+          butler -V
+
+      - name: Push to itch.io
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          butler push export/web "${ITCH_PROJECT}:${CHANNEL}" --userversion "${{ steps.version.outputs.version }}"
+
+      - name: Summary
+        run: |
+          echo "### Deployed to itch.io :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Project:** [${ITCH_PROJECT}](https://luckyhitgames.itch.io/slow-rails)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Channel:** \`${CHANNEL}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Version:** \`${{ steps.version.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit:** \`${GITHUB_SHA::7}\`" >> "$GITHUB_STEP_SUMMARY"
