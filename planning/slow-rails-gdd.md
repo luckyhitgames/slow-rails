@@ -2,7 +2,7 @@
 type: GDD
 status: draft
 created: 2026-05-18
-updated: 2026-05-20
+updated: 2026-05-24
 working_title: slow-rails
 jam: GameDev.tv Jam 2026
 jam_page: https://itch.io/jam/gamedevtv-jam-2026
@@ -16,12 +16,22 @@ ladder section below.
 
 ## Pitch
 
-Place tiles to grow a landscape with a rail line winding
-through it. Your train rolls one tile per day, visiting points
-of interest along the way. Scoring rewards the **best journey** —
+Place tiles to grow a landscape with a trail winding through
+it. Your traveler walks one tile per day, stopping at points of
+interest along the way. Scoring rewards the **best journey** —
 variety of stops, set bonuses, the right detours — not the
 fastest path. A solo Tokaido in a painterly landscape: slow is
 the point.
+
+> **Pivot note (2026-05-22):** original concept was a train on
+> rails. Theme reframed to hiking when the Kenney Map Pack —
+> the chosen v0.4 art source — turned out to have no vehicles.
+> Mechanics (tile-laying, one-tile-per-day movement, N/E/S/W
+> edge connections, POI scoring) are unchanged. Code-level
+> identifiers (`rail_edges`, etc.) keep their original names
+> through v0.3 and may be renamed during the v0.4 vibe pass.
+> Repo name `slow-rails` is intentionally not yet renamed; see
+> LUC-40 for pivot tracking.
 
 ## Inspirations
 
@@ -44,64 +54,63 @@ the point.
 
 Jam theme: **Connections** (confirmed).
 
-The rail network IS the literal connection layer. Tiles are
-landscape; rails on tile edges are the connection medium. The
+The trail network IS the literal connection layer. Tiles are
+landscape; paths on tile edges are the connection medium. The
 player's verb is *connect* (place a tile that joins another
-tile's rail); the train *travels* the connections you've made.
+tile's path); the traveler *walks* the connections you've made.
 End-game scoring rewards the *quality* of those connections,
 not their density.
 
-Two visible progression analogs stack: **network growth** (rail
-line extends across the map) + **territory coverage** (the map
+Two visible progression analogs stack: **network growth** (the
+trail extends across the map) + **territory coverage** (the map
 fills in as tiles are placed).
 
 ## Differentiation from Mini Metro
 
-Mini Metro overlap is the biggest design risk — both games are
-"connect things with lines." The escape lives in three places:
+Mini Metro overlap was the original concept's biggest design
+risk — both games are "connect things with lines." The hiking
+reframe widens the gap further. The escape lives in three
+places:
 
 1. **Mechanically:** Mini Metro is about *flow* (passengers
-   shuttling in real-time, throughput optimization). Slow Rails
+   shuttling in real-time, throughput optimization). This game
    is about *journey* (single trip, contemplative, end-game
    tableau).
 2. **Visually:** Mini Metro is clinical minimalism (white field,
-   primary colors, geometry). Slow Rails is painterly landscape
-   (forest, mountain, water, plain — Kenney landscape packs as
-   starting point). The painted art is what does the
-   differentiation, not the tile geometry — square tiles with
-   painted forest/mountain/water still read as landscape, not
-   as Mini Metro.
+   primary colors, geometry). This game is painterly landscape
+   built from Kenney's Map Pack (forest, mountain, water,
+   plain, trail). Square tiles with painted terrain + a hiker
+   icon read as a walking map, not as a transit diagram.
 3. **Tonally:** Mini Metro has tension (line overload,
-   passenger grumbling, real-time pressure). Slow Rails has
-   zero tension — turn-based, no fail state, the journey always
+   passenger grumbling, real-time pressure). This game has zero
+   tension — turn-based, no fail state, the journey always
    completes.
 
 ## Design decisions (resolved)
 
-- **Track-laying mechanic: tile-based** (Dorfromantik lineage).
-  Tiles drawn from a deck; each tile has rail segments on some
-  edges; placement requires rail-edge alignment with an
-  adjacent placed tile. POIs live on tiles. *Why:* simpler
-  engineering, naturally landscape-flavored, escapes Mini Metro
-  visually.
+- **Path-laying mechanic: tile-based** (Dorfromantik lineage).
+  Tiles drawn from a deck; each tile has path segments on some
+  edges; placement requires edge alignment with an adjacent
+  placed tile. POIs live on tiles. *Why:* simpler engineering,
+  naturally landscape-flavored, escapes Mini Metro visually.
 - **Commit-as-you-go (no Build/Journey phase split).** Place a
-  tile → train rolls onto it next day. *Why:* halves the UI
+  tile → traveler walks onto it next day. *Why:* halves the UI
   work; very natural with tile-laying.
 - **Square tiles** (over hex). *Why:* Godot's `TileMap` handles
   squares natively; `(x, y)` coords beat axial hex math by a
   meaningful margin for v0.1 implementation time (~3–5 hours
   saved → v0.3 polish budget). The landscape aesthetic comes
-  from painted art, not tile geometry. 4 rail edges (N/E/S/W)
+  from painted art, not tile geometry. 4 path edges (N/E/S/W)
   vs 6 is a depth trade-off the player won't notice at v0.2.
 
 ## Core loop
 
 1. Draw the next tile from the deck.
 2. Place it on any empty cell adjacent to an already-placed
-   tile, with at least one rail edge matching the neighbor's
-   rail.
-3. Advance one day → train rolls forward along the rail to the
-   next tile in its path.
+   tile, with at least one path edge matching the neighbor's
+   path.
+3. Advance one day → traveler walks forward along the path to
+   the next tile in their route.
 4. If the new tile has a POI, collect its category token + score
    ticker.
 5. Continue until the deck empties (or N days pass).
@@ -114,7 +123,7 @@ Placement and travel are intertwined — no separate build phase.
 - **Win condition:** no fail state; the journey always
   completes. Score is the score. Players chase high score across
   multiple runs.
-- **Soft fail:** no playable tile in hand (rail mismatch on
+- **Soft fail:** no playable tile in hand (path mismatch on
   every adjacent empty cell). Player discards + draws again
   (capped count). Should be rare with a well-tuned deck.
 
@@ -129,22 +138,23 @@ POI types start at 3 (per v0.2 below) and grow if scope permits:
 
 ## UI — painterly landscape (Dorfromantik influence)
 
-Implementation north star: square tiles with Kenney landscape
+Implementation north star: square tiles with Kenney Map Pack
 art + stock Godot UI chrome. Don't theme; don't hunt fonts.
 
-- **World map:** square grid; painterly tile art; rail segments
+- **World map:** square grid; painterly tile art; path segments
   rendered on tile edges
 - **Tile in hand:** large preview of the next tile,
   lower-right of screen
 - **Placement:** click an empty adjacent cell; ghost preview
   before commit
-- **Journey UI:** day counter; current train position
+- **Journey UI:** day counter; current traveler position
   highlighted; score tickers fire when POI is visited
 - **Scoring postcard:** end-game stylized tableau — **the vibe
   lever**. Lives in v0.3 / v0.4.
 
 Assets:
-- Kenney CC0 landscape packs (forest, mountain, water, plain)
+- Kenney Map Pack (CC0): terrain tiles (forest, mountain,
+  water, plain) + trail/path overlays
 - Stamp-style POI icons (3 categories × ~2 variants)
 - Default Godot UI for chrome
 - Stretch: hand-drawn postcard backgrounds for the score screen
@@ -162,8 +172,6 @@ jam entry" target; v0.5 is submission day.
 
 - Godot project scaffolded per `godot-playbooks/godot-project-setup.md`
   Part 1
-- No AutoLoads yet — see "AutoLoads: deferred until needed"
-  in Engineering notes for the rationale
 - One placeholder square tile renders on a blank scene
 - First daily `butler push` to a throwaway itch page — **keep
   it Draft (private)** until v0.5 submission. The push
@@ -174,35 +182,36 @@ Not playable. Establishes the deploy chain works **before** any
 mechanic work — every hour spent debugging the export pipeline
 later is doubly painful.
 
-### v0.1 — the place-and-roll loop (Day 1 / Thu 5/21)
+### v0.1 — the place-and-walk loop (Day 1 / Thu 5/21)
 
 The minimum viable fun:
 
 1. Fixed starting tile, placeholder art (colored squares OK)
 2. "Next tile" visible in hand
 3. Click any empty adjacent cell to place
-4. Train rolls onto each placed tile in order, one per day
+4. Traveler walks onto each placed tile in order, one per day
 5. Deck empties (~10 tiles) → game ends
 6. End screen: "You visited X places. Play again?"
 
 No edge matching, no categories, no UI flourish. Just place,
-roll, end, number.
+walk, end, number.
 
 **State lives on the gameplay scene's root node** — `grid`
 (Dictionary[Vector2i, Tile]), `deck` (Array),
-`train_position`, `score`. No globals, no AutoLoads, no event
-bus. The dumbest single-scene shape ships fastest.
+`train_position`, `score`. Single-scene, so no cross-scene
+plumbing is needed yet; AutoLoads and a SignalBus become the
+obvious shape once v0.4 adds title/end-screen transitions.
 
-**5-min-fun test:** does placing a tile and watching the train
-roll feel good? If yes, this is the floor — everything after
-adds, never replaces.
+**5-min-fun test:** does placing a tile and watching the
+traveler step onto it feel good? If yes, this is the floor —
+everything after adds, never replaces.
 
 ### v0.2 — the choice (Day 2 / Fri 5/22)
 
 The only required mechanical complication:
 
-- Tiles have rails on 2–4 edges; placement requires connecting
-  a rail to an adjacent tile's rail edge
+- Tiles have paths on 2–4 edges; placement requires connecting
+  a path to an adjacent tile's path edge
 - 3 background types (plain, forest, water) for visual variety
 - 3 POI types (Vista, Cuisine, Encounter) on ~30% of tiles
 - End screen lists totals per category
@@ -226,13 +235,21 @@ score screen appears? "I almost got the full set" = success.
 
 ### v0.4 — the vibe pass (Day 4 / Sun 5/24)
 
-Delight, not features:
+Delight, not features. This is also where the **hiking reframe
+lands visually** — see LUC-40 for the pivot tracker.
 
-- Painterly Kenney tile art (forest, mountain, plain, water)
-- Stamp-style POI icons
+- Painterly Kenney Map Pack tile art (forest, mountain, plain,
+  water) with trail/path overlays
+- Hiker sprite replacing the placeholder travel marker
+- Stamp-style POI icons (passport-stamp aesthetic — LUC-32)
 - Postcard scoring screen with cohesive visual language
-- Ambient train-rumble loop + ticket-clack on POI visit
-- Conductor whistle at journey end
+- Ambient outdoor loop (wind/birds) + soft footfall on each
+  step; passport-stamp click on POI visit
+- Arrival chime at journey end
+
+Code-level identifiers (`rail_edges`, etc.) may also be
+renamed to `path_edges` here if there's time — cosmetic, low
+priority. Skip if it threatens the v0.5 submission window.
 
 **5-min-fun test:** would you screenshot this for someone? This
 is the "polished jam entry" target.
@@ -279,10 +296,15 @@ All first-pass; retune in playtest.
 
 ## Risks (acknowledged from concept stage)
 
-- **Mini Metro orbit** — addressed by tile-based mechanic +
-  painterly landscape direction (see Differentiation). Watch
-  during v0.4 vibe pass for any drift back toward minimalist
-  abstract.
+- **Mini Metro orbit** — largely defused by the hiking reframe
+  (a walking map reads nothing like a transit diagram). Still
+  watch during v0.4 vibe pass for any drift back toward
+  minimalist abstract.
+- **Late theme pivot (2026-05-22)** — train→hiking decided
+  ~3 days before submission. v0.4 carries the entire visual
+  and audio swap. Risk: ambition outruns the v0.4 budget.
+  Mitigation: keep code identifiers as-is; reframe only what
+  the player sees and hears.
 - **Tile placement UX** — must be tactile and snappy. Budget
   v0.1 Thursday evening for placement-feel iteration; if it
   feels fiddly, the whole game feels fiddly.
@@ -293,9 +315,11 @@ All first-pass; retune in playtest.
 
 ## Engineering notes (scoped to v0.1 → v0.2)
 
-One gameplay scene; state lives on its root node. No
-AutoLoads. Composition (`game-architecture-patterns.md` §1)
-still applies; AutoLoads (§2) deferred — see subsection below.
+One gameplay scene; state lives on its root node. Composition
+(`game-architecture-patterns.md` §1) and AutoLoads (§2) both
+apply — AutoLoads just don't have a use case yet because the
+game is single-scene through v0.3. See AutoLoads subsection
+below.
 
 - Tiles as **component scenes**: one `TileComponent` exposing
   `background_type`, `rail_edges` (4-bit bitmask: N/E/S/W),
@@ -314,23 +338,22 @@ still applies; AutoLoads (§2) deferred — see subsection below.
 - Input: mouse only (keyboard optional). Single button — click
   to place.
 
-### AutoLoads: deferred until needed
+### AutoLoads
 
-Godot AutoLoads (singletons accessible from any scene) are
-the recommended pattern in `game-architecture-patterns.md` §2
-for cross-scene state and global signals. slow-rails **defers
-them** because v0.1–v0.3 lives in a **single scene** — there's
-nothing to "share across scenes" until at least v0.4 polish
-adds a title or game-over scene, and even then Godot's
-`change_scene_to_packed` (or just reloading the scene) can
-pass data without needing a global.
+Godot AutoLoads (`Project Settings → AutoLoad`) are the
+standard pattern for cross-scene state, global signals, and
+long-lived systems (audio, save, RNG, settings) — see
+`game-architecture-patterns.md` §2. slow-rails uses them as
+the need arises: nothing in v0.1–v0.3 crosses scene
+boundaries because the game is one scene, but a `SignalBus`
+and `GameSettings` AutoLoad become the obvious shape the
+moment v0.4 adds title/end-screen transitions.
 
-Add an AutoLoad only when (a) two scenes must share live
-state that can't be passed at scene-change time, or (b) a
-system must outlive a scene swap (e.g. background music
-continues across scenes). For this jam, **skip the
-abstraction until forced** — the dumb single-scene shape
-ships faster.
+Rule of thumb: reach for an AutoLoad when (a) two scenes
+need to share live state, (b) a system must outlive a scene
+swap (background music, current-run data), or (c) a signal
+needs to cross scene boundaries. Don't pre-build them for
+hypothetical needs; don't avoid them out of caution either.
 
 ## Related
 
