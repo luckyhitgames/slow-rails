@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://cr80i2tnlh8sa"]
+
+[ext_resource type="Script" uid="uid://xiqkwt0jt3di" path="res://scenes/tile_visual.gd" id="1_16r1q"]
+
+[node name="TileVisual" type="Node2D" unique_id=1282543669]
+script = ExtResource("1_16r1q")
+
+[node name="Background" type="ColorRect" parent="." unique_id=1058983903]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Rails" type="Node2D" parent="." unique_id=32518101]
+
+[node name="Label" type="Label" parent="." unique_id=1519979924]
+offset_right = 40.0
+offset_bottom = 23.0
