@@ -11,8 +11,9 @@ jam_window: 2026-05-15 → 2026-05-25 21:00 UTC
 
 # Slow Rails — GameDev.tv Jam 2026 GDD
 
-Working title — rename freely. Live calendar in the Version
-ladder section below.
+Working title — rename freely. Candidates: Slow Trails /
+Slow Walk / Wayfarer / The Long Path. Live calendar in the
+Version ladder section below.
 
 ## Pitch
 
@@ -126,14 +127,18 @@ Placement and travel are intertwined — no separate build phase.
 - **Soft fail:** no playable tile in hand (path mismatch on
   every adjacent empty cell). Player discards + draws again
   (capped count). Should be rare with a well-tuned deck.
+  **Discard mechanic is post-v0.2** — trust deck tuning first;
+  only implement if playtest proves the soft-fail rate is real.
 
 ## Scoring framework
 
 POI types start at 3 (per v0.2 below) and grow if scope permits:
 
 - **v0.2:** 3 POI types (Vista, Cuisine, Encounter), 1pt each
-- **v0.3:** add set bonuses (3-of-a-kind = +5; full set across
-  all 3 types = +3)
+- **v0.3:** add set bonuses (3-of-a-kind = **+5 per triple** —
+  e.g. 6 Vistas = 2 triples = +10; full set across all 3 types
+  = +3). End screen surfaces missed bonuses ("+0 Full set —
+  one Encounter short") for the replay hook.
 - **Stretch:** 4th–5th category, rarity tiers, regional bonuses
 
 ## UI — painterly landscape (Dorfromantik influence)
@@ -150,14 +155,46 @@ art + stock Godot UI chrome. Don't theme; don't hunt fonts.
 - **Journey UI:** day counter; current traveler position
   highlighted; score tickers fire when POI is visited
 - **Scoring postcard:** end-game stylized tableau — **the vibe
-  lever**. Lives in v0.3 / v0.4.
+  lever**. v0.3 lays out the structure (3-column tableau, one
+  per POI category, with icons + per-column "3-of-a-kind" tag,
+  bonus row beneath, grand total + Play Again at bottom; total
+  is the largest text on screen). v0.4 reskins to postcard.
 
 Assets:
-- Kenney Map Pack (CC0): terrain tiles (forest, mountain,
-  water, plain) + trail/path overlays
-- Stamp-style POI icons (3 categories × ~2 variants)
-- Default Godot UI for chrome
-- Stretch: hand-drawn postcard backgrounds for the score screen
+- **Kenney Map Pack** — https://kenney.nl/assets/map-pack
+  (CC0, ~180 files, top-down overworld). Confirmed no vehicle
+  sprites — drove the hiking pivot. **User-verified contents:**
+  terrain backgrounds + path overlays in the four geometries
+  the GDD needs (straights, curves, T-junctions, cross — the
+  shape vocabulary matches the rail-edge bitmask, though the
+  specific sprite-filename → bitmask-integer mapping needs a
+  one-time lookup table at import). Character sprites are
+  present and usable as the hiker. **TBD:** exact tile
+  dimensions in px — drives the `CELL_SIZE = 128` decision in
+  Engineering notes; confirm at import time and adjust the
+  constant if needed.
+- Runner-up packs (if Map Pack disappoints in style): Kenney
+  Tiny Town, Kenney Hexagon Kit, Kenney RPG Urban (style
+  differs across these — visual audit at swap time).
+- **Stamp-style POI icons** (Vista = viewpoint/mountain motif,
+  Cuisine = fork-and-knife, Encounter = silhouette/handshake).
+  Typewriter font for stamp text (Special Elite or Courier
+  Prime, both OFL/CC0). Game Icons.net (CC BY 3.0, attribution
+  required) is the fallback source if Kenney lacks usable
+  stamps.
+- Default Godot UI for chrome.
+- Stretch: hand-drawn postcard backgrounds for the score screen.
+
+**Asset import workflow** (per `asset-pipeline.md`):
+- Drop pack into `assets/kenney_map_pack/` (preserve original
+  folder name for CC0 attribution clarity)
+- Per-texture in Godot Inspector: **Import tab → Compress mode
+  → VRAM Compressed (mode 2)**, Desktop + Mobile presets ON
+- Target post-compression budget: **< 2–3 MB** of art in `.pck`
+  (verify with `du -sh export/web/index.pck` after export)
+- Audit unsettled imports: `grep -L "compress/mode=2" assets/**/*.import`
+- Add attribution row to `CREDITS.md` (engine/art/audio/tools
+  sections — see `CREDITS.md` at repo root)
 
 ## Version ladder (5-minutes-of-fun discipline)
 
@@ -194,13 +231,17 @@ The minimum viable fun:
 6. End screen: "You visited X places. Play again?"
 
 No edge matching, no categories, no UI flourish. Just place,
-walk, end, number.
+walk, end, number. **Edge matching lands in v0.2** — v0.1 is
+intentionally constraint-free placement.
 
-**State lives on the gameplay scene's root node** — `grid`
-(Dictionary[Vector2i, Tile]), `deck` (Array),
-`train_position`, `score`. Single-scene, so no cross-scene
-plumbing is needed yet; AutoLoads and a SignalBus become the
-obvious shape once v0.4 adds title/end-screen transitions.
+**State lives on the gameplay scene's root node**:
+`grid: Dictionary[Vector2i, Tile]`, `deck: Array[Tile]`,
+`hand: Tile` (the next tile to place),
+`train_path: Array[Vector2i]` (route in placement order),
+`train_index: int`, `day: int`, `score: int`, `state: enum`.
+Single-scene, so no cross-scene plumbing is needed yet;
+AutoLoads and a SignalBus become the obvious shape once v0.4
+adds title/end-screen transitions.
 
 **5-min-fun test:** does placing a tile and watching the
 traveler step onto it feel good? If yes, this is the floor —
@@ -217,9 +258,11 @@ The only required mechanical complication:
 - End screen lists totals per category
 
 **5-min-fun test:** does the edge-matching constraint create
-interesting choices? If matching feels punishing, ease it (some
-"open" edges always connect). If too lax, no real choice
-exists. **This is the minimum acceptable submission.**
+interesting choices? If matching feels punishing, ease it by
+sprinkling cross-tiles (bitmask=15, all four edges open) into
+the deck — re-tunes difficulty without re-engineering rules. If
+too lax, no real choice exists. **This is the minimum
+acceptable submission.**
 
 ### v0.3 — the replay hook (Day 3 / Sat 5/23)
 
@@ -246,6 +289,9 @@ lands visually** — see LUC-40 for the pivot tracker.
 - Ambient outdoor loop (wind/birds) + soft footfall on each
   step; passport-stamp click on POI visit
 - Arrival chime at journey end
+- Audio import: `.ogg` Vorbis (not `.mp3` — browser autoplay
+  gates), Compress: Lossy in import, < 2 MB total in `.pck`.
+  Volume defaults: ambient -15 dB, SFX 0 dB, chime -5 dB.
 
 Code-level identifiers (`rail_edges`, etc.) may also be
 renamed to `path_edges` here if there's time — cosmetic, low
@@ -258,11 +304,28 @@ is the "polished jam entry" target.
 
 Pre-submission only — **no new features**:
 
-- Cover image + 3–5 screenshots + 10-second GIF for itch page
-- Page copy per `itch-page-craft.md` structure
-- Final web export + `butler push`
-- itch page Draft → Public; submit before 21:00 UTC
-- Tag commit: `git tag jam-submission`
+- **Capture targets**: cover image 760×600 (≤3 MB); 3–5
+  screenshots covering (a) mid-game with a meandering trail +
+  POIs visited, (b) tile-in-hand with ghost preview, (c) end-of-
+  journey scoring screen, (d) wide landscape variety; 10-second
+  GIF (≤5 MB) of one full place→walk→POI cycle.
+- Page copy per `itch-page-craft.md`. itch tags (max 10):
+  `tile-based, relaxing, puzzle, singleplayer, casual, cozy,
+  godot, hiking, gamedevtv-jam, connections`. Avoid hype words
+  ("epic", "exciting", "addictive").
+- **Web export gates** (verify each before going public):
+  - Release build: `godot --headless --export-release "Web"
+    export/web/index.html` (NOT `--export-debug`)
+  - Total `export/web/` < 25 MB (bug canary at v0.2: < 15 MB)
+  - SAB / Cross-Origin Isolation: itch page Kind=HTML AND
+    Cross-Origin Isolation toggle ON
+  - All 5 files present: `index.html`, `index.pck`, `index.js`,
+    `index.wasm`, `index.audio.worklet.js`
+  - Verify load in incognito after `butler push` (local Python
+    `http.server` doesn't replicate itch's headers)
+- Final `butler push`; itch page Draft → Public; submit before
+  21:00 UTC.
+- Tag commit: `git tag jam-submission && git push --tags`.
 
 ### Beyond v0.5 — only if a miracle happens (or post-jam)
 
@@ -290,9 +353,20 @@ Nice-to-have, not jam-scope:
 All first-pass; retune in playtest.
 
 - Deck size: 10–15 tiles for v0.1; 20–25 for v0.2
-- POI density: ~30% of tiles tagged with a POI type
+- POI density (v0.2): ~30% — ~6–8 POI-tagged tiles in a
+  20–25 deck, ~2–3 per category
+- Background distribution (v0.2): ~even split across PLAIN /
+  FOREST / WATER (~7 each in a 20–25 deck)
+- Deck generation weights (v0.3): rail patterns —
+  straights ×3, curves ×2, T-junctions ×1, cross ×1; backgrounds
+  — PLAIN ×4, FOREST ×3, WATER ×3 (slight plain-favoring)
+- Starting tile: hand-picked (bitmask=15, all four edges open),
+  fixed at `Vector2i.ZERO`, separate from the generated deck
+- RNG: seed captured + printed at run start for debug
+  reproducibility (`rng.seed = hash(Time.get_unix_time_from_system())`)
 - Grid: bounded to fit single screen (no scrolling)
-- Pace: 1 day per tile; ends when deck empties
+- Pace: 1 day per tile; ~0.3s travel tween with SINE ease;
+  ends when deck empties
 
 ## Risks (acknowledged from concept stage)
 
@@ -321,20 +395,40 @@ apply — AutoLoads just don't have a use case yet because the
 game is single-scene through v0.3. See AutoLoads subsection
 below.
 
-- Tiles as **component scenes**: one `TileComponent` exposing
-  `background_type`, `rail_edges` (4-bit bitmask: N/E/S/W),
-  `poi_type` (nullable)
+- **Tile data vs visual split** — `Tile` is a custom
+  `Resource` (`scripts/tile.gd`) holding `background_type`,
+  `rail_edges` (4-bit bitmask: **N=1, E=2, S=4, W=8**),
+  `poi_type` (nullable). `TileVisual` is a separate `Node2D`
+  scene (`scenes/tile_visual.tscn` + `scripts/tile_visual.gd`)
+  that renders the resource. Decoupled so the same `Tile` can
+  be displayed in hand, preview, and on the board. Use
+  `@export_flags("North","East","South","West")` on the
+  `Tile` resource so the inspector becomes the v0.1 deck-
+  authoring tool.
+- **Bitmask reference**: straights N|S=5, E|W=10; curves
+  N|E=3, E|S=6, S|W=12, W|N=9; T-junctions 7/11/13/14;
+  cross=15; empty=0.
+- **Tile-type enums + helpers** in `scripts/tile_types.gd`:
+  directional enum, `DIR_VECTORS` (Vector2i lookup table),
+  `OPPOSITE` map. Adjacency check (v0.2):
+  `a.has_rail(dir) and b.has_rail(OPPOSITE[dir])`.
 - Grid state on the gameplay scene root:
-  `Dictionary[Vector2i, Tile]` — the logical source of truth.
-  Godot's built-in `TileMap` node handles rendering.
+  `Dictionary[Vector2i, Tile]` — sparse, O(1) adjacency via
+  `DIR_VECTORS`, no bounds checking, trivial to serialize.
+  The logical source of truth; Godot's built-in `TileMap`
+  node handles rendering.
 - **Local signals** within the gameplay scene
   (`tile_placed`, `train_advanced`, `poi_visited`,
   `journey_ended`, `score_changed`) — defined on the root
   node, connected by children that care. No global event bus.
 - Simple enum state machine on the root:
   `WAITING_FOR_PLACEMENT` / `TRAIN_ADVANCING` / `SCORE`
-- No `AStar2D` needed — the train's next tile is determined at
-  placement time via rail-edge lookup
+- **No `AStar2D` needed** — `train_path: Array[Vector2i]`
+  is the route source of truth, appended in placement order
+  by `place_tile()`. Travel is index-driven (no pathfinding);
+  rails don't fork in v0.1.
+- **CELL_SIZE = 128 px** (board scale baseline; tile-in-hand
+  preview at half-scale, 64 px).
 - Input: mouse only (keyboard optional). Single button — click
   to place.
 
@@ -355,6 +449,13 @@ swap (background music, current-run data), or (c) a signal
 needs to cross scene boundaries. Don't pre-build them for
 hypothetical needs; don't avoid them out of caution either.
 
+**Reset hazard for v0.4:** once AutoLoads hold run-scoped
+state (current run's score, day, RNG seed), restarting via
+`get_tree().reload_current_scene()` won't reset them. Add an
+explicit `reset_run()` hook on each run-scoped AutoLoad when
+title/end-screen transitions land, and call it from the
+"Play Again" path.
+
 ## Related
 
 - `game-mechanics-and-genres.md` — brainstorm palette
@@ -369,6 +470,8 @@ hypothetical needs; don't avoid them out of caution either.
   HTML5
 - `godot-playbooks/godot-project-setup.md` — Wed 5/20
   scaffolding reference
+- `CREDITS.md` (repo root) — attribution + asset license
+  tracking (engine, art, audio, tools, inspirations, fonts)
 - Jam page: https://itch.io/jam/gamedevtv-jam-2026
 - Dorfromantik (Steam):
   https://store.steampowered.com/app/1455840/Dorfromantik/
